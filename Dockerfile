@@ -34,6 +34,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates jq
 
+# Perceval runs git with a minimal environment (only LANG/HOME, plus proxy vars for fetch),
+# so `git clone` never sees HTTPS_PROXY. A system-level git config is read regardless of
+# env, so clones also go through the egress proxy (the only route out of the internal network).
+RUN git config --system http.proxy http://egress-proxy:3128
+
 RUN groupadd --gid ${GID} app \
  && useradd --uid ${UID} --gid ${GID} --create-home --shell /usr/sbin/nologin app \
  && mkdir -p /cache /data \
