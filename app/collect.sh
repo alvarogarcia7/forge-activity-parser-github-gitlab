@@ -33,18 +33,25 @@ DATA_DIR="${DATA_DIR:-/data}"
 CACHE_DIR="${CACHE_DIR:-/cache}"
 AUTHOR_REGEX="${AUTHOR_REGEX:-}"   # e.g. 'alvaro|alvarogarcia7' -> also writes mine.jsonl
 
-# Private repos: inject tokens via git's env-based config (nothing written to disk,
-# and the token never ends up in the "origin" field of the output).
-n=0
-if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-  export "GIT_CONFIG_KEY_$n=url.https://x-access-token:${GITHUB_TOKEN}@github.com/.insteadOf"
-  export "GIT_CONFIG_VALUE_$n=https://github.com/"; n=$((n+1))
+# Private repos: write the token rewrite rules to a private git config in $HOME.
+# Perceval runs git with a minimal environment (GIT_CONFIG_* env vars would be dropped),
+# but it does pass HOME through. $HOME is tmpfs in compose; the file is removed on exit,
+# and the token never ends up in the "origin" field of the output.
+if [[ -n "${GITHUB_TOKEN:-}" || -n "${GITLAB_TOKEN:-}" ]]; then
+  umask 077
+  GITCONF="${HOME:?HOME must be set}/.gitconfig"
+  trap 'rm -f "$GITCONF"' EXIT
+  : >"$GITCONF"
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    printf '[url "https://x-access-token:%s@github.com/"]\n\tinsteadOf = https://github.com/\n' \
+      "$GITHUB_TOKEN" >>"$GITCONF"
+  fi
+  if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+    printf '[url "https://oauth2:%s@gitlab.com/"]\n\tinsteadOf = https://gitlab.com/\n' \
+      "$GITLAB_TOKEN" >>"$GITCONF"
+  fi
 fi
-if [[ -n "${GITLAB_TOKEN:-}" ]]; then
-  export "GIT_CONFIG_KEY_$n=url.https://oauth2:${GITLAB_TOKEN}@gitlab.com/.insteadOf"
-  export "GIT_CONFIG_VALUE_$n=https://gitlab.com/"; n=$((n+1))
-fi
-export GIT_CONFIG_COUNT=$n GIT_TERMINAL_PROMPT=0
+export GIT_TERMINAL_PROMPT=0
 
 [[ -r "$REPOS_FILE" ]] || {
   echo "repos file not readable: $REPOS_FILE (cp config/repos.txt.example config/repos.txt)" >&2; exit 2; }
