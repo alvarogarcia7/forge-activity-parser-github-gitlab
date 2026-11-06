@@ -1,6 +1,6 @@
-# perceval-docker
+# Forge (Github, Gitlab) Activity Parser
 
-Incremental git activity collector ([Perceval](https://github.com/chaoss/grimoirelab-perceval)) → JSONL,
+Incremental git activity collector: ([Perceval](https://github.com/chaoss/grimoirelab-perceval)) → JSONL,
 running as non-root with egress limited to an allowlist.
 
 ```
