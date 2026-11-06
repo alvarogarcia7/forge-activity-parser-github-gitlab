@@ -1,0 +1,14 @@
+# Repositories to collect: copy to config/repos.txt (`make config/repos.txt`), which is git-ignored.
+#
+# Format:
+#   - one git clone URL per line (https only; the proxy allows port 443)
+#   - blank lines and anything after `#` are ignored
+#   - each URL's host must be allowed in config/urls.txt
+#   - private repos need GITHUB_TOKEN / GITLAB_TOKEN in .env (don't put tokens in URLs)
+#
+# Each repo is written to data/commits/<host>__<owner>__<repo>.jsonl.
+# Removing a line stops collecting that repo; its JSONL and clone are kept.
+
+https://github.com/octocat/Hello-World.git
+# https://github.com/<user>/<repo>.git
+# https://gitlab.com/<group>/<subgroup>/<project>.git
