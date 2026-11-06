@@ -1,0 +1,26 @@
+# LOCAL SANDBOX ONLY - do not commit.
+#
+# For hosts where the Docker daemon cannot see this repo's path (bind mounts
+# come through empty). Replaces the repo bind mounts with named volumes that
+# sandbox-sync.sh fills via `docker cp`.
+#
+# Use:  ./sandbox-sync.sh && COMPOSE_FILE=docker-compose.yml:docker-compose.sandbox.yml make test-egress
+
+services:
+  egress-proxy:
+    volumes: !override
+      - pv-config:/config:ro
+
+  collector:
+    volumes: !override
+      - pv-app:/app:ro
+      - pv-data:/data
+      - perceval-cache:/cache
+
+volumes:
+  pv-config:
+    external: true
+  pv-app:
+    external: true
+  pv-data:
+    external: true
