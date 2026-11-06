@@ -18,7 +18,12 @@ if [[ -r "$ENV_FILE" ]]; then
     [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
     key="${BASH_REMATCH[2]}"; val="${BASH_REMATCH[3]}"
     val="${val%"${val##*[![:space:]]}"}"                          # rtrim
-    if [[ "$val" =~ ^\"(.*)\"$ || "$val" =~ ^\'(.*)\'$ ]]; then val="${BASH_REMATCH[1]}"; fi
+    if [[ "$val" =~ ^\"(.*)\"$ || "$val" =~ ^\'(.*)\'$ ]]; then
+      val="${BASH_REMATCH[1]}"
+    elif [[ "$val" =~ [[:space:]]# ]]; then
+      echo "$ENV_FILE: '$key' has a trailing '# comment'; move the comment to the line above" >&2
+      exit 2
+    fi
     if [[ -z "${!key:-}" ]]; then export "$key=$val"; fi            # real env wins
   done <"$ENV_FILE"
 fi

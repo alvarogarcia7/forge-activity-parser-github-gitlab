@@ -34,8 +34,10 @@ One https clone URL per line; `#` starts a comment and blank lines are ignored.
 
 ```
 https://github.com/octocat/Hello-World.git
-https://github.com/<user>/<repo>.git      # private: needs GITHUB_TOKEN
-https://gitlab.com/<group>/<project>.git  # private: needs GITLAB_TOKEN
+# private: needs GITHUB_TOKEN
+https://github.com/<user>/<repo>.git
+# private: needs GITLAB_TOKEN
+https://gitlab.com/<group>/<project>.git
 ```
 
 - Each URL's host must be allowed in `config/urls.txt`, or the clone fails with a proxy 403.
@@ -45,14 +47,38 @@ https://gitlab.com/<group>/<project>.git  # private: needs GITLAB_TOKEN
 
 ### `.env`
 
+Create it with `make .env`, which copies `.env.example` and sets mode 400. Every variable is optional;
+with an empty `.env`, public repos still work.
+
+| Variable | Used by | Purpose |
+|---|---|---|
+| `GITHUB_TOKEN` | collect.sh | Private GitHub repos. Fine-grained token with *Contents: Read-only* on the listed repos (or classic `repo` scope) |
+| `GITLAB_TOKEN` | collect.sh | Private gitlab.com repos. Scope `read_repository` |
+| `AUTHOR_REGEX` | collect.sh | Case-insensitive regex on `Name <email>`. When set, also rebuilds `data/mine.jsonl` |
+| `HOST_UID`, `HOST_GID` | compose / build | Override the non-root `app` user's uid/gid. Default: your host ids, never 0 |
+
+Example:
+
 ```
-GITHUB_TOKEN=github_pat_...   # fine-grained, "Contents: read" on listed repos
-GITLAB_TOKEN=glpat-...        # read_repository scope
-AUTHOR_REGEX=alvaro|alvarogarcia7   # also write data/mine.jsonl (case-insensitive match on "Name <email>")
+# Fine-grained PAT, Contents: Read-only
+GITHUB_TOKEN=github_pat_11AAAA...
+
+# read_repository scope
+GITLAB_TOKEN=glpat-xxxxxxxxxxxxxxxxxxxx
+
+# My name or e-mail as it appears in commits
+AUTHOR_REGEX=alvaro|alvarogarcia7
 ```
 
-`collect.sh` parses `.env` as `KEY=VALUE` lines without executing it. The values are not passed through
-compose `environment:`, so they don't show up in `docker inspect`. To edit: `chmod u+w .env`, edit, `chmod 400 .env`.
+Format rules:
+
+- One `KEY=VALUE` per line, with no spaces around `=`.
+- **Comments go on their own line, above the value.** A trailing `# ...` would become part of the value, so
+  `collect.sh` stops with an error naming the key.
+- Quotes are optional. A variable already set in the environment wins over `.env`.
+
+`collect.sh` parses `.env` without executing it, and the values are not passed through compose `environment:`,
+so they don't show up in `docker inspect`. To edit: `chmod u+w .env`, edit, `chmod 400 .env`.
 
 ### `config/urls.txt`
 
