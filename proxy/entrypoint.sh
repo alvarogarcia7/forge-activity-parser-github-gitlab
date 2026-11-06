@@ -9,7 +9,13 @@ set -eu
 SRC="${ALLOWLIST_FILE:-/config/urls.txt}"
 DST=/run/squid/allowed_domains.txt
 
-[ -r "$SRC" ] || { echo "allowlist not readable: $SRC" >&2; exit 1; }
+# A missing bind-mount source makes Docker create an empty *directory* at this path;
+# refuse that explicitly instead of starting with an empty allowlist.
+[ -f "$SRC" ] && [ -r "$SRC" ] || {
+  echo "allowlist is not a readable regular file: $SRC" >&2
+  echo "(if it is a directory, the host path was not visible to the Docker daemon)" >&2
+  exit 1
+}
 
 sed -e 's/#.*//' -e 's/[[:space:]]//g' "$SRC" \
   | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://##; s#[/?].*$##; s#^[^@]*@##; s#:[0-9]+$##' \
