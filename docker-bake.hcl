@@ -24,7 +24,7 @@ group "default" {
 }
 
 target "collector" {
-  context    = "./app"
+  context    = "."
   dockerfile = "Dockerfile"
   target     = "runtime"
   tags       = ["perceval-collector:local"]

@@ -8,7 +8,22 @@
 # A fresh/missing clone emits the full history.
 set -euo pipefail
 
-REPOS_FILE="${REPOS_FILE:-/config/repos.txt}"
+APP_DIR="${APP_DIR:-/app}"                     # repo, mounted read-only
+ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"           # secrets, read-only via the repo mount
+
+# Load KEY=VALUE lines from .env without executing it (no `source`): secrets are
+# never passed through compose `environment:`, so they don't show in `docker inspect`.
+if [[ -r "$ENV_FILE" ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
+    key="${BASH_REMATCH[2]}"; val="${BASH_REMATCH[3]}"
+    val="${val%"${val##*[![:space:]]}"}"                          # rtrim
+    if [[ "$val" =~ ^\"(.*)\"$ || "$val" =~ ^\'(.*)\'$ ]]; then val="${BASH_REMATCH[1]}"; fi
+    if [[ -z "${!key:-}" ]]; then export "$key=$val"; fi            # real env wins
+  done <"$ENV_FILE"
+fi
+
+REPOS_FILE="${REPOS_FILE:-$APP_DIR/config/repos.txt}"
 DATA_DIR="${DATA_DIR:-/data}"
 CACHE_DIR="${CACHE_DIR:-/cache}"
 AUTHOR_REGEX="${AUTHOR_REGEX:-}"   # e.g. 'alvaro|alvarogarcia7' -> also writes mine.jsonl
@@ -26,7 +41,8 @@ if [[ -n "${GITLAB_TOKEN:-}" ]]; then
 fi
 export GIT_CONFIG_COUNT=$n GIT_TERMINAL_PROMPT=0
 
-[[ -r "$REPOS_FILE" ]] || { echo "repos file not readable: $REPOS_FILE" >&2; exit 2; }
+[[ -r "$REPOS_FILE" ]] || {
+  echo "repos file not readable: $REPOS_FILE (cp config/repos.txt.example config/repos.txt)" >&2; exit 2; }
 mkdir -p "$DATA_DIR/commits" "$CACHE_DIR/repos"
 
 failed=0

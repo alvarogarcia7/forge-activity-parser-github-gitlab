@@ -1,3 +1,5 @@
 .buildx-cache/
+.venv/
 data/
 .env
+config/repos.txt

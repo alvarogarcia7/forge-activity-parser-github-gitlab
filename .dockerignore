@@ -1,0 +1,6 @@
+# Collector build context = repo root, but the image only needs the lockfile inputs.
+# Everything else (code, config, .env, data) is bind-mounted at runtime, never baked in.
+*
+!pyproject.toml
+!uv.lock
+!.python-version

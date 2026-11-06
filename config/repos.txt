@@ -1,4 +1,0 @@
-# Repositories to collect, one clone URL per line. Hosts must be in urls.txt.
-https://github.com/octocat/Hello-World.git
-# https://github.com/alvarogarcia7/<repo>.git
-# https://gitlab.com/<group>/<project>.git

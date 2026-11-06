@@ -5,6 +5,13 @@
 # The collector is attached ONLY to an `internal: true` network, so it has no
 # gateway to the outside world. Its only way out is the squid proxy, which
 # permits hosts listed in ./config/urls.txt (mounted read-only) and denies the rest.
+#
+# Mounts (collector):
+#   .        -> /app   read-only  (code, config/repos.txt, .env secrets)
+#   ./data   -> /data  read-write (JSONL output)
+#   volume   -> /cache read-write (git clones = incremental cache)
+# Secrets are read from /app/.env by collect.sh and are NOT passed via
+# `environment:`/`env_file:`, so they don't appear in `docker inspect`.
 
 name: perceval
 
@@ -36,7 +43,7 @@ services:
     <<: *hardening
     image: perceval-collector:local
     build:
-      context: ./app
+      context: .
       args:
         UID: ${HOST_UID:-10001}
         GID: ${HOST_GID:-10001}
@@ -51,13 +58,10 @@ services:
       https_proxy: http://egress-proxy:3128
       NO_PROXY: localhost,127.0.0.1
       no_proxy: localhost,127.0.0.1
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      GITLAB_TOKEN: ${GITLAB_TOKEN:-}
-      AUTHOR_REGEX: ${AUTHOR_REGEX:-}
     volumes:
-      - ./config/repos.txt:/config/repos.txt:ro
-      - ./data:/data                 # JSONL output (host-visible)
-      - perceval-cache:/cache        # git clones = the incremental cache
+      - .:/app:ro
+      - ./data:/data
+      - perceval-cache:/cache
     tmpfs:
       - /tmp:size=64m
       - /home/app:mode=1777,size=16m
