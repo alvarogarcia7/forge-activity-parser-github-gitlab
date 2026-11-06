@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "achievement.schema.json",
+  "title": "Achievement",
+  "description": "One line of a rag database file (data/<db>.jsonl), schema v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "date", "time", "idea", "topics", "project", "category", "free", "source"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "time": {
+      "type": "string",
+      "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{4}$"
+    },
+    "idea": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "topics": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/slug" }
+    },
+    "project": {
+      "anyOf": [{ "$ref": "#/$defs/slug" }, { "type": "null" }]
+    },
+    "category": {
+      "anyOf": [{ "$ref": "#/$defs/slug" }, { "type": "null" }]
+    },
+    "free": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/slug" },
+      "additionalProperties": { "$ref": "#/$defs/freeValue" }
+    },
+    "source": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["remote", "branch", "commit", "path"],
+          "properties": {
+            "remote": { "type": ["string", "null"] },
+            "branch": { "type": ["string", "null"] },
+            "commit": { "type": ["string", "null"] },
+            "path": { "type": ["string", "null"] }
+          }
+        },
+        { "type": "null" }
+      ]
+    }
+  },
+  "$defs": {
+    "slug": {
+      "description": "lower-and-dashes: lowercase letters and digits separated by single dashes",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "scalar": {
+      "type": ["string", "number", "boolean"]
+    },
+    "freeValue": {
+      "anyOf": [
+        { "$ref": "#/$defs/scalar" },
+        { "type": "array", "items": { "$ref": "#/$defs/scalar" } }
+      ]
+    }
+  }
+}

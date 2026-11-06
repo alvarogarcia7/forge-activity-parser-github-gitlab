@@ -1,6 +1,6 @@
 # Retrieval tool for a human operator: design
 
-Status: proposal. Nothing here is implemented yet.
+Status: implemented in phases 1–5 (see the phased plan below). Module map: `src/rag/`; tests: `tests/`.
 
 ## Goal
 
@@ -31,8 +31,8 @@ These patterns are borrowed. The `achievements` repo is a reference, not somethi
 | Source | Produced by | Shape |
 |---|---|---|
 | Achievements | the `add` command (new) | JSONL, schema-validated, one record per achievement |
-| Commits | this repo's collector, `data/commits/*.jsonl` and `data/mine.jsonl` | Perceval items; commit data is under `.data` |
-| Merged MRs/PRs, tasks | not collected yet | future collector backends (Perceval has GitHub and GitLab backends) |
+| Commits | this repo's collector, `data/commits/*.jsonl` | Perceval items; commit data is under `.data` |
+| Merged MRs/PRs, assigned issues | `rag fetch gitlab\|github`, written to `data/reviews/<host>.jsonl` | API calls with the token; the collector's egress allowlist applies |
 
 The collector already stores commit history, so achievement harvesting can read from it instead of
 calling the hosting APIs again.
@@ -63,8 +63,8 @@ Decisions:
 - **Pointers, not code.** `source` says where the implementation lives. The AI reads the code at that
   pointer. The store never holds the code.
 - **`source` is captured at add time** from the current git repository (`git remote get-url origin`,
-  `git rev-parse --abbrev-ref HEAD`, `git rev-parse --short HEAD`). Commit-based records take `commit`
-  and `branch` from the collector's `refs` field.
+  `git rev-parse --abbrev-ref HEAD`, `git rev-parse --short HEAD`). Commits from the collector are not
+  turned into achievement records; `contributions` and `tasks` read them directly.
 - **`free` is an object of arbitrary keys.** The schema permits it explicitly, instead of the
   `additionalProperties: false` used by `achievements`. Values are strings, numbers, booleans, or
   arrays of those.
@@ -74,14 +74,17 @@ Decisions:
 
 ```text
 rag add "idea text" [--topic a,b] [--project P] [--category C] [--free k=v ...]
-rag select [--db NAME] [--date SPEC] [--topic T] [--project P] [--category C]
-           [--any=VALUE] [--text QUERY] [--format jsonl|line] [--fields ...]
+           [--path P] [--no-source] [--db NAME]
+rag select [--db NAME] [--date SPEC] [--topic T] [--any-topic] [--project P] [--category C]
+           [--any=VALUE] [--text QUERY] [--ranked] [--format jsonl|line] [--fields ...]
 rag browse [same filters]                 # fzf, preview = `rag view`
-rag view ID
-rag contributions --author REGEX [--since SPEC] [--group-by project|repo|month]
-rag tasks --author REGEX [--since SPEC]
+rag view ID [--db NAME]
+rag index [--db NAME]                     # builds the ranked index used by --ranked
+rag contributions [--author REGEX] [--since SPEC] [--group-by project|repo|month]
+rag tasks [--author REGEX] [--since SPEC] # local merges plus fetched reviews
+rag fetch gitlab|github                   # merged MRs/PRs and assigned issues, needs a token
 rag validate FILE
-rag retry FILE
+rag retry FILE [--db NAME]
 ```
 
 - **`select` output** is JSONL by default. Each line is the full record, with `source` included, so
@@ -106,10 +109,13 @@ Add to the `achievements` set:
 Three layers, each one added only when the previous is not enough:
 
 1. **Filters** (above). Exact, deterministic, no index needed.
-2. **Text match** for `--text`. Case-insensitive substring over `idea`, `topics`, `project`, `free`.
+2. **Text match** for `--text`. Case-insensitive substring over `idea`, `topics`, `project`, `category`
+   and `free` values.
    Sufficient at small scale.
 3. **Ranked text search.** A SQLite FTS5 index built from the JSONL, with BM25 ranking. It is derived
-   from the JSONL and can be deleted and rebuilt. Used when substring match gives too many or too few hits.
+   from the JSONL and can be deleted and rebuilt. Used by `select --ranked`. The index stores a SHA-256 of
+   the data file and is refused when it no longer matches. Punctuated words (`c++`) also have to match
+   literally, because the tokenizer splits them.
 
 Embeddings are a later option. If used, embed `idea` + `topics` + `project`, use a local model, and
 document it explicitly, because the content is personal.
@@ -118,11 +124,11 @@ document it explicitly, because the content is personal.
 
 `rag contributions` and `rag tasks` work from:
 
-- `data/mine.jsonl` (or the per-repo files), filtered by author using `AUTHOR_REGEX` from `.env`. The
+- `data/commits/*.jsonl`, filtered by author using `AUTHOR_REGEX` from `.env` (or `--author`). The
   collector already has this setting.
 - Merge commits, which identify merged MRs and PRs locally. Their subjects follow the hosting
   convention (for example `Merge branch 'x' into 'main'`, or `Merge pull request #N`).
-- Later: the GitLab/GitHub API, through a collector backend, for MR/PR titles, links, and task (issue)
+- The GitLab/GitHub API, through `rag fetch`, for MR/PR titles, links, and task (issue)
   references. This needs the existing tokens, and the egress allowlist must include the API hosts.
 
 Contribution output is a summary per project or repo: commit count, merged-MR count, first and last
@@ -150,10 +156,18 @@ entries, and nothing is written silently.
    `free` and `source`. Tests modelled on the `achievements` test layout.
 2. **Phase 2:** `contributions` and `tasks` from the local commit JSONL and merge commits.
 3. **Phase 3:** `browse` with fzf.
-4. **Phase 4:** FTS5 index, only if substring text match is not enough.
-5. **Phase 5:** GitLab/GitHub MR and issue backends in the collector, then richer `tasks`.
+4. **Phase 4:** FTS5 index (`rag index`, `select --ranked`).
+5. **Phase 5:** GitLab/GitHub MR and issue fetch (`rag fetch`), merged into `tasks`.
 
 ## Decisions
+
+- Merges count for the person who made them. `contributions` lists commits by the author and merges
+  by the merger. An MR is credited to its author only through the API backend (`rag fetch`), which
+  lists MRs created by the token's user.
+- A date spec may follow its option with a space: `rag select --date -1m..` works. Internally the CLI
+  rewrites it to `--date=-1m..`.
+- `tasks` combines local merge commits with fetched reviews (`data/reviews/<host>.jsonl`) and drops
+  the local row when a fetched row has the same URL.
 
 - `topic` is a tag. `--topic` filters on `topics`.
 - `--any=VALUE` matches any value in `free`. It replaces the earlier `--free` argument.

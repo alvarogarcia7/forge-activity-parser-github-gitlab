@@ -3,3 +3,4 @@
 data/
 .env
 config/repos.txt
+__pycache__/

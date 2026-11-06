@@ -127,3 +127,28 @@ with no duplicates.
 - `read_only` root fs, `cap_drop: ALL`, `no-new-privileges`, tmpfs for scratch.
 - Collector is only on an `internal: true` network, so bypassing the proxy has no route.
 - Proxy allows CONNECT to port 443 and plain HTTP to 80, only for allowlisted hosts.
+
+
+## rag: retrieve and record achievements
+
+A command-line tool for a human operator. Its output is JSON Lines, so an AI assistant can read
+matches and reuse earlier work. Design: [docs/rag-design.md](docs/rag-design.md).
+
+```bash
+make sync
+make rag ARGS="add 'Built a Helm chart' --topic kubernetes,helm --free tier=beta"
+make rag ARGS="select --topic kubernetes --date -1m.. --format jsonl"
+make rag ARGS="select --any=beta --ranked --text chart"   # after: make rag ARGS=index
+make rag ARGS="browse --topic kubernetes"                 # needs fzf
+make rag ARGS="fetch gitlab"                              # MRs/issues via GITLAB_TOKEN (see .env.example)
+make rag ARGS="contributions --group-by month"            # needs AUTHOR_REGEX in .env
+make rag ARGS="tasks --since -3m.."
+make test
+make coverage
+```
+
+Data lives in `data/` (git-ignored): `<db>.jsonl` for achievements, `commits/` from the collector,
+`reviews/` from `rag fetch`, and `<db>.fts.sqlite` as a rebuildable index. Settings come from `.env`
+(`RAG_DATA_DIR`, `RAG_DB`, `AUTHOR_REGEX`, `GITLAB_URL`, `GITHUB_API_URL`, tokens); environment
+variables win over the file. Self-hosted GitLab or GitHub hosts must also be allowed in
+`config/urls.txt` for the collector's egress proxy; `rag fetch` itself runs on the host.

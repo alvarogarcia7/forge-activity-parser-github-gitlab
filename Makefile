@@ -22,7 +22,7 @@ SYNC_IF_SANDBOX = @true
 EXPORT_IF_SANDBOX = @true
 endif
 
-.PHONY: help sync builder build collect up down logs shell test-egress clean-cache
+.PHONY: help sync builder build collect up down logs shell test-egress clean-cache test coverage rag
 
 ## Show targets
 help:
@@ -32,6 +32,18 @@ help:
 ## Create a local .venv with uv (for running/debugging outside docker)
 sync:
 	uv sync --frozen
+
+## Run the rag test suite
+test:
+	uv run --frozen pytest
+
+## Run the rag test suite with branch coverage (target: 95%+)
+coverage:
+	uv run --frozen pytest --cov --cov-report=term-missing --cov-fail-under=95
+
+## Run the rag command, e.g. make rag ARGS="select --topic kubernetes"
+rag:
+	PYTHONPATH=src uv run --frozen python -m rag $(ARGS)
 
 ## Copy config/repos.txt.example -> config/repos.txt
 config/repos.txt:
