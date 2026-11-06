@@ -1,0 +1,9 @@
+# Egress allowlist (mounted read-only into the proxy). One entry per line.
+#   github.com        exact host
+#   .github.com       host + all subdomains
+#   https://x.y/path  URL form also works; only the host is used
+# Restart the proxy after editing:  docker compose restart egress-proxy
+
+github.com
+api.github.com
+gitlab.com

@@ -1,0 +1,71 @@
+# Network layout
+#
+#   collector ──(internal: no route out)──> egress-proxy ──(egress)──> allowlisted hosts only
+#
+# The collector is attached ONLY to an `internal: true` network, so it has no
+# gateway to the outside world. Its only way out is the squid proxy, which
+# permits hosts listed in ./config/urls.txt (mounted read-only) and denies the rest.
+
+name: perceval
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: "no"
+
+services:
+  egress-proxy:
+    <<: *hardening
+    image: perceval-egress-proxy:local
+    build: ./proxy
+    restart: unless-stopped
+    networks: [internal, egress]
+    volumes:
+      - ./config/urls.txt:/config/urls.txt:ro
+    tmpfs:
+      - /run/squid:mode=1777,size=16m
+      - /tmp:size=16m
+    healthcheck:
+      test: ["CMD", "squid", "-k", "check", "-f", "/etc/squid/squid.conf"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  collector:
+    <<: *hardening
+    image: perceval-collector:local
+    build:
+      context: ./app
+      args:
+        UID: ${HOST_UID:-10001}
+        GID: ${HOST_GID:-10001}
+    networks: [internal]
+    depends_on:
+      egress-proxy:
+        condition: service_healthy
+    environment:
+      HTTP_PROXY: http://egress-proxy:3128
+      HTTPS_PROXY: http://egress-proxy:3128
+      http_proxy: http://egress-proxy:3128
+      https_proxy: http://egress-proxy:3128
+      NO_PROXY: localhost,127.0.0.1
+      no_proxy: localhost,127.0.0.1
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITLAB_TOKEN: ${GITLAB_TOKEN:-}
+      AUTHOR_REGEX: ${AUTHOR_REGEX:-}
+    volumes:
+      - ./config/repos.txt:/config/repos.txt:ro
+      - ./data:/data                 # JSONL output (host-visible)
+      - perceval-cache:/cache        # git clones = the incremental cache
+    tmpfs:
+      - /tmp:size=64m
+      - /home/app:mode=1777,size=16m
+
+networks:
+  internal:
+    internal: true
+  egress: {}
+
+volumes:
+  perceval-cache:
